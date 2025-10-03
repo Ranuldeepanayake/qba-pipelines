@@ -6,7 +6,7 @@ def SELECTOR_PACKAGE_JSON = ['qba-back-end', 'qba-front-end']
 def VERSION_NUM
 def BUILD_TIMESTAMP
 def VERSION_FILE
-def ARTIFACT_REPOSITORY_URL = '613305577487.dkr.ecr.ap-southeast-1.amazonaws.com'
+def ARTIFACT_REPOSITORY_URL = '000.dkr.ecr.ap-southeast-1.amazonaws.com'
 def ARTIFACT_REPOSITORY_USERNAME = 'AWS'
 def ARTIFACT_REPOSITORY_REGION = 'ap-southeast-1'
 def IMAGE_TAG_PREFIX = "$ARTIFACT_REPOSITORY_URL/qba/$JOB_BASE_NAME"
