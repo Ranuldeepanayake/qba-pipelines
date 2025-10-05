@@ -6,7 +6,7 @@ def SELECTOR_PACKAGE_JSON = ['qba-back-end', 'qba-front-end']
 def VERSION_NUM
 def BUILD_TIMESTAMP
 def VERSION_FILE
-def ARTIFACT_REPOSITORY_URL = '000.dkr.ecr.ap-southeast-1.amazonaws.com'
+def ARTIFACT_REPOSITORY_URL = 'public.ecr.aws/l4a5c1v5'
 def ARTIFACT_REPOSITORY_USERNAME = 'AWS'
 def ARTIFACT_REPOSITORY_REGION = 'ap-southeast-1'
 def IMAGE_TAG_PREFIX = "$ARTIFACT_REPOSITORY_URL/qba/$JOB_BASE_NAME"
@@ -51,28 +51,30 @@ pipeline {
     //Checkout the source code.
     stage("Repository checkout"){
       steps {
-        dir('qba'){
-            checkout scmGit(
-                branches: [[name: INPUT_GIT_BRANCH]], userRemoteConfigs: [[credentialsId: 'Github-SSH-Key', 
-                url: CODE_REPOSITORY_URL]]
-            )
-        }
+        checkout scmGit(
+            branches: [[name: INPUT_GIT_BRANCH]], userRemoteConfigs: [[credentialsId: 'Github-SSH-Key', 
+            url: CODE_REPOSITORY_URL]]
+        )
       }
     }
 
     //Get the current version number.
     stage("Read the version number"){
-      when {
-          expression {
-            return SELECTOR_PACKAGE_JSON.contains(env.JOB_BASE_NAME)
-          }
-      }
+      // when {
+      //     expression {
+      //       return SELECTOR_PACKAGE_JSON.contains(env.JOB_BASE_NAME)
+      //     }
+      // }
 
       steps{
         script{
-          //Read the version file.
-          VERSION_NUM = sh(returnStdout: true, script: "jq -r .version $VERSION_FILE | tr -d '\n' ")
-          sh "echo Current version: $VERSION_NUM"
+          //Handle multiple version file types.
+          if (SELECTOR_PACKAGE_JSON.contains(env.JOB_BASE_NAME)){
+            VERSION_FILE = 'package.json'
+            //Read the version file.
+            VERSION_NUM = sh(returnStdout: true, script: "jq -r .version $VERSION_FILE | tr -d '\n' ")
+            sh "echo Current version: $VERSION_NUM"
+          }
 
           //Check for inconsistencies in the version number and pass or fail the job.
           //The version number in the release branch should only have three number segments. The patch version must be 0.
@@ -102,7 +104,7 @@ pipeline {
             BUILD_TIMESTAMP = BUILD_TIMESTAMP.format("YYYYMMddHHmm", TimeZone.getTimeZone('IST'))
             sh "echo Build timestamp: $BUILD_TIMESTAMP"
 
-            sh "cd ./lbcap-app; docker build -f Dockerfile -t $IMAGE_TAG_PREFIX:$VERSION_NUM-SNAPSHOT-$BUILD_TIMESTAMP ."
+            sh "docker build -f Dockerfile -t $IMAGE_TAG_PREFIX:$VERSION_NUM-SNAPSHOT-$BUILD_TIMESTAMP ."
         }
       }
     }
@@ -118,8 +120,8 @@ pipeline {
 
       steps {
         script{
-          withCredentials([aws(accessKeyVariable: 'AWS_ACCESS_KEY_ID', credentialsId: 'zone_ecr', secretKeyVariable: 'AWS_SECRET_ACCESS_KEY')]) {
-            sh "aws ecr get-login-password --region $ARTIFACT_REPOSITORY_REGION | docker login --username $ARTIFACT_REPOSITORY_USERNAME \
+          withCredentials([aws(accessKeyVariable: 'AWS_ACCESS_KEY_ID', credentialsId: 'jenkins-aws-key-1', secretKeyVariable: 'AWS_SECRET_ACCESS_KEY')]) {
+            sh "aws ecr-public get-login-password --region $ARTIFACT_REPOSITORY_REGION | docker login --username $ARTIFACT_REPOSITORY_USERNAME \
             --password-stdin $ARTIFACT_REPOSITORY_URL"
             sh "docker push $IMAGE_TAG_PREFIX:$VERSION_NUM-SNAPSHOT-$BUILD_TIMESTAMP"
           }
