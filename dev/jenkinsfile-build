@@ -122,7 +122,7 @@ pipeline {
         script{
           withCredentials([aws(accessKeyVariable: 'AWS_ACCESS_KEY_ID', credentialsId: 'jenkins-aws-key-1', secretKeyVariable: 'AWS_SECRET_ACCESS_KEY')]) {
             sh "aws ecr-public get-login-password --region $ARTIFACT_REPOSITORY_REGION | docker login --username $ARTIFACT_REPOSITORY_USERNAME \
-            --password-stdin public.ecr.aws"
+            --password-stdin $ARTIFACT_REPOSITORY_URL"
             sh "docker push $IMAGE_TAG_PREFIX:$VERSION_NUM-SNAPSHOT-$BUILD_TIMESTAMP"
           }
         }
