@@ -11,6 +11,11 @@ def ARTIFACT_REPOSITORY_USERNAME = 'AWS'
 def ARTIFACT_REPOSITORY_REGION = 'us-east-1'
 def IMAGE_TAG_PREFIX = "$ARTIFACT_REPOSITORY_URL/qba/$JOB_BASE_NAME"
 
+def DEPLOYMENT_REPOSITORY_URL = 'git@github.com:Ranuldeepanayake/qba-helm.git'
+def DEPLOYMENT_BRANCH = 'main'
+def DEPLOYMENT_COMMIT_EMAIL = 'ranuldeepanayake@outlook.com'
+def DEPLOYMENT_COMMIT_USERNAME = 'Ranul'
+
 //Input parameter variables.
 //INPUT_GIT_BRANCH
 //INPUT_ACTION
@@ -21,7 +26,7 @@ pipeline {
 
   parameters {
     //Form element to select the action.  
-    choice choices: ['Build', 'Build-and-Deploy'], description: 'Select action', name: 'INPUT_ACTION'
+    choice choices: ['Build', 'Build-and-Deploy', 'Deploy'], description: 'Select action', name: 'INPUT_ACTION'
 
     //Form element to select the git branch.
     listGitBranches branchFilter: '.*', credentialsId: 'Github-SSH-Key', defaultValue: 'develop', 
@@ -51,10 +56,12 @@ pipeline {
     //Checkout the source code.
     stage("Repository checkout"){
       steps {
-        checkout scmGit(
-            branches: [[name: INPUT_GIT_BRANCH]], userRemoteConfigs: [[credentialsId: 'Github-SSH-Key', 
-            url: CODE_REPOSITORY_URL]]
-        )
+        dir('app-repo'){
+          checkout scmGit(
+              branches: [[name: INPUT_GIT_BRANCH]], userRemoteConfigs: [[credentialsId: 'Github-SSH-Key', 
+              url: CODE_REPOSITORY_URL]]
+          )
+        }
       }
     }
 
@@ -70,7 +77,7 @@ pipeline {
         script{
           //Handle multiple version file types.
           if (SELECTOR_PACKAGE_JSON.contains(env.JOB_BASE_NAME)){
-            VERSION_FILE = 'package.json'
+            VERSION_FILE = 'app-repo/package.json'
             //Read the version file.
             VERSION_NUM = sh(returnStdout: true, script: "jq -r .version $VERSION_FILE | tr -d '\n' ")
             sh "echo Current version: $VERSION_NUM"
@@ -104,7 +111,7 @@ pipeline {
             BUILD_TIMESTAMP = BUILD_TIMESTAMP.format("YYYYMMddHHmm", TimeZone.getTimeZone('IST'))
             sh "echo Build timestamp: $BUILD_TIMESTAMP"
 
-            sh "docker build -f Dockerfile -t $IMAGE_TAG_PREFIX:$VERSION_NUM-SNAPSHOT-$BUILD_TIMESTAMP ."
+            sh "docker build -f app-repo/Dockerfile -t $IMAGE_TAG_PREFIX:$VERSION_NUM-SNAPSHOT-$BUILD_TIMESTAMP ."
         }
       }
     }
@@ -129,8 +136,100 @@ pipeline {
       }
     }
     
-  } 
+    //Pull the deployment repo to be updated with new values.
+    stage("Pull deployment repo"){
+      when {
+        anyOf {
+          expression {INPUT_ACTION == 'Build-and-Deploy'}
+          expression {INPUT_ACTION == 'Deploy'}
+        }
+      }
 
+      steps {
+        dir('deployment-repo'){
+            checkout scmGit(
+                branches: [[name: DEPLOYMENT_BRANCH]], userRemoteConfigs: [[credentialsId: 'Github-SSH-Key', 
+                url: DEPLOYMENT_REPOSITORY_URL]]
+            )
+        }
+      }
+    }
+
+    //Deflate helm template.
+    stage("Deflate helm templates for Kustomize in ArgoCD"){
+      when {
+        anyOf {
+          expression {INPUT_ACTION == 'Build-and-Deploy'}
+          expression {INPUT_ACTION == 'Deploy'}
+        }
+      }
+
+      steps {
+        script {
+          dir("$WORKSPACE/deployment-repo"){
+            //Commit and push.
+            sh '''
+              cd qba
+              helm template . > rendered.yaml
+              ls -la | grep rendered.yaml
+            '''
+          }
+        }
+      }
+    }
+
+    //Copy the .env file from the app repo to the deployment repo.
+    stage("Copy the .env file from the app repo to the deployment repo"){
+      when {
+        anyOf {
+          expression {INPUT_ACTION == 'Build-and-Deploy'}
+          expression {INPUT_ACTION == 'Deploy'}
+        }
+      }
+
+      steps {
+        sshagent(['Github-SSH-Key']) {
+          script {
+            sh "pwd"
+            sh "ls -la"
+
+            dir("$WORKSPACE/app-repo"){
+              sh "pwd"
+              sh "ls -la"
+              
+              //sh "git checkout $PARENT_BRANCH"
+              sh "git config --get remote.origin.url"
+
+              //Print the variable file in both repos.
+              sh "cat .env/.env-dev"
+              //sh "cat $WORKSPACE/deployment-repo/.env"
+            }
+
+            dir("$WORKSPACE/deployment-repo"){
+              //Commit and push.
+              sh "git config --get remote.origin.url"
+
+              sh "git checkout $DEPLOYMENT_BRANCH"
+
+              //Copy the env file to the deployment repo.
+              sh "cp $WORKSPACE/app-repo/.env/.env-dev qba/files/$JOB_BASE_NAME\\.env"
+              sh "pwd"
+              sh "ls -la"
+              
+              //Configure the username and email for commits.
+              sh "git config user.email $DEPLOYMENT_COMMIT_EMAIL"
+              sh "git config user.name $DEPLOYMENT_COMMIT_USERNAME"
+
+              sh "git add ."
+              sh "git commit --allow-empty -m 'Environment file in the deployment repo replaced with the file in the app repo' "
+              sh "git push origin $PARENT_BRANCH"
+            }
+          }
+        }  
+      }
+    } 
+
+  } 
 }
 
 
