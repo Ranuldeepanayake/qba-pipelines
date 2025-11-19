@@ -111,9 +111,9 @@ pipeline {
             BUILD_TIMESTAMP = BUILD_TIMESTAMP.format("YYYYMMddHHmm", TimeZone.getTimeZone('IST'))
             sh "echo Build timestamp: $BUILD_TIMESTAMP"
 
-            sh "pwd; ls;"
+            sh "pwd; ls app-repo;"
 
-            sh "docker build -f app-repo/Dockerfile -t $IMAGE_TAG_PREFIX:$VERSION_NUM-SNAPSHOT-$BUILD_TIMESTAMP ."
+            sh "docker build -f app-repo/dockerfile -t $IMAGE_TAG_PREFIX:$VERSION_NUM-SNAPSHOT-$BUILD_TIMESTAMP ."
         }
       }
     }
