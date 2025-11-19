@@ -23,7 +23,7 @@ def DEPLOYMENT_COMMIT_USERNAME = 'Ranul'
 pipeline {
 
   agent {
-    label "JENKINS-MASTER-1"
+    label "JENKINS-WORKER-1"
   }
 
   parameters {
