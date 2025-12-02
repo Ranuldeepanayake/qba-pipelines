@@ -2,7 +2,7 @@
 
 //Global variables
 def CODE_REPOSITORY_URL = "git@github.com:Ranuldeepanayake/$JOB_BASE_NAME" + ".git"
-def SELECTOR_PACKAGE_JSON = ['qba-back-end', 'qba-front-end']
+def SELECTOR_PACKAGE_JSON = ['qba-back-end', 'qba-subscriber-front-end', 'qba-subscriber-back-end', 'qba-configurator']
 def VERSION_NUM
 def BUILD_TIMESTAMP
 def VERSION_FILE
